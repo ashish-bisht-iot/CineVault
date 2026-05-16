@@ -85,19 +85,6 @@ Go to: [http://127.0.0.1:5000](http://127.0.0.1:5000)
 
 ---
 
-## 🎮 How to Use
-
-1. **Pick a genre** from the home page grid
-2. On the genre page, scroll down to **"Log a Movie You Watched"**
-3. Upload photos/posters/clips using the upload zone
-4. Fill in the movie title (required), director, years, rating, and review
-5. Click **Add Movie** — it appears as a card above the form
-6. Click any image/video thumbnail to open the **lightbox viewer**
-7. Use **Edit** to update details or **Delete** to remove a movie
-8. Use the **🌙 / ☀️ toggle** in the top-right to switch themes
-
----
-
 ## 🛠️ Tech Stack
 
 | Layer     | Technology                          |
