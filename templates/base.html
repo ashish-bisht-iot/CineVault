@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" {% if g_info %}data-genre="{{ g_info.key }}"{% endif %}>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CineVault{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    /* Apply saved theme before page renders — prevents flash */
+    (function(){
+      var t = localStorage.getItem('cv-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<nav>
+  <a href="{{ url_for('index') }}" class="logo">CineVault</a>
+  <div class="nav-right">
+    {% block nav_right %}
+    <a href="{{ url_for('index') }}" class="nbtn">Home</a>
+    {% endblock %}
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle light/dark mode">
+      <span class="theme-icon theme-icon-dark">🌙</span>
+      <span class="theme-icon theme-icon-light">☀️</span>
+    </button>
+  </div>
+</nav>
+
+{% block body %}{% endblock %}
+
+<footer>
+  <span class="footer-logo">CineVault</span>
+  <nav class="footer-links">
+    {% for genre in genres %}
+    <a href="{{ url_for('genre_page', genre_key=genre.key) }}"
+       {% if g_info and g_info.key == genre.key %}style="color:var(--accent)"{% endif %}>
+      {{ genre.label }}
+    </a>
+    {% endfor %}
+  </nav>
+  <span class="footer-copy">© 2025 CineVault. All rights reserved.</span>
+</footer>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-inner" style="max-width:1000px;">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <div id="lbContent"></div>
+    <div class="lightbox-body">
+      <div class="lightbox-title" id="lbTitle"></div>
+      <div class="lightbox-meta" id="lbMeta"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+{% set g_info = g %}
+{% block title %}CineVault — {{ g.label }}{% endblock %}
+
+{% block head %}
+<style>
+  :root { --accent: {{ g.color }}; --accent-rgb: {{ g.rgb }}; }
+
+  .mood-tag  { color:var(--accent); border-color:rgba(var(--accent-rgb),0.35); background:rgba(var(--accent-rgb),0.1); }
+  .mood-page-title span { color:var(--accent); }
+  .play-btn  { background:var(--accent); color:#fff; box-shadow:0 8px 30px rgba(var(--accent-rgb),0.35); }
+  .stat-num  { color:var(--accent); }
+
+  /* Upload zone */
+  .upload-zone { border:2px dashed rgba(var(--accent-rgb),0.35); border-radius:var(--rl); cursor:pointer; transition:border-color 0.3s,background 0.3s; background:rgba(var(--accent-rgb),0.04); position:relative; text-align:center; }
+  .upload-zone:hover { border-color:var(--accent); background:rgba(var(--accent-rgb),0.08); }
+  .upload-zone label { display:block; padding:40px 32px; cursor:pointer; }
+  .upload-zone input[type="file"] { display:none; }
+  .upload-icon { font-size:40px; margin-bottom:12px; }
+  .upload-title { font-family:var(--sans); font-size:15px; font-weight:700; color:var(--accent); margin-bottom:6px; }
+  .upload-hint  { font-size:12px; color:var(--muted); line-height:1.6; }
+
+  /* Add movie form */
+  .add-form { background:var(--card); border:1px solid var(--border-hi); border-radius:var(--rl); padding:32px; margin-top:20px; }
+  .add-form h3 { font-family:var(--sans); font-size:13px; font-weight:700; color:var(--accent); margin-bottom:20px; letter-spacing:1.5px; text-transform:uppercase; }
+  .preview-strip { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .preview-thumb { width:60px; height:60px; border-radius:var(--r); object-fit:cover; border:1px solid var(--border-hi); }
+  .preview-vid   { width:60px; height:60px; border-radius:var(--r); background:var(--surface); border:1px solid var(--border-hi); display:flex; align-items:center; justify-content:center; font-size:22px; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+  .form-group { display:flex; flex-direction:column; gap:6px; }
+  .form-group label { font-family:var(--sans); font-size:10px; font-weight:700; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; }
+  .form-group input,
+  .form-group select,
+  .form-group textarea { background:var(--surface); border:1px solid var(--border-hi); border-radius:var(--r); padding:10px 14px; color:var(--text); font-family:var(--body); font-size:13px; outline:none; transition:border-color 0.2s; width:100%; }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus { border-color:var(--accent); }
+  .form-group select option { background:var(--surface); }
+  .form-group textarea { resize:vertical; min-height:80px; }
+  .star-picker { display:flex; gap:6px; }
+  .star-radio { display:none; }
+  .star-lbl { font-size:24px; cursor:pointer; opacity:0.3; transition:opacity 0.15s,transform 0.15s; }
+  .star-radio:checked ~ .star-lbl { opacity:0.3; }
+  .star-lbl:hover,
+  .star-lbl:hover ~ .star-lbl { opacity:0.3; }
+  /* CSS-only star highlight trick (RTL flex) */
+  .star-picker { flex-direction:row-reverse; justify-content:flex-end; }
+  .star-lbl:hover, .star-lbl:hover ~ .star-lbl,
+  .star-radio:checked ~ .star-lbl { opacity:1; }
+  .form-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+  .form-btn { padding:10px 26px; border-radius:var(--r); font-family:var(--sans); font-size:13px; font-weight:700; cursor:pointer; border:none; transition:transform 0.15s; }
+  .form-btn:hover { transform:translateY(-1px); }
+  .form-btn-cancel { background:var(--card-hover); color:var(--muted); border:1px solid var(--border-hi); text-decoration:none; display:inline-flex; align-items:center; }
+  .form-btn-save { background:var(--accent); color:#fff; }
+
+  /* Movie cards grid */
+  .movies-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:18px; margin-top:28px; }
+  .movie-card { background:var(--card); border:1px solid var(--border); border-radius:var(--rl); overflow:hidden; transition:transform 0.3s cubic-bezier(.34,1.56,.64,1),box-shadow 0.3s; }
+  .movie-card:hover { transform:translateY(-6px); box-shadow:0 20px 50px rgba(0,0,0,0.6); }
+  .movie-cover { position:relative; aspect-ratio:2/3; overflow:hidden; background:var(--surface); cursor:pointer; }
+  .movie-cover img, .movie-cover video { width:100%; height:100%; object-fit:cover; transition:transform 0.4s ease; }
+  .movie-card:hover .movie-cover img, .movie-card:hover .movie-cover video { transform:scale(1.05); }
+  .movie-cover-empty { display:flex; align-items:center; justify-content:center; font-size:52px; opacity:0.25; height:100%; }
+  .cover-count { position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,0.7); color:#fff; font-family:var(--sans); font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; }
+  .media-strip { display:flex; gap:6px; overflow-x:auto; padding:10px 14px 0; scrollbar-width:none; }
+  .media-strip::-webkit-scrollbar { display:none; }
+  .strip-thumb { flex-shrink:0; width:52px; height:52px; border-radius:8px; object-fit:cover; border:1px solid var(--border); cursor:pointer; transition:transform 0.2s,opacity 0.2s; opacity:0.75; }
+  .strip-thumb:hover { transform:scale(1.1); opacity:1; }
+  .strip-vid { flex-shrink:0; width:52px; height:52px; border-radius:8px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; transition:transform 0.2s; opacity:0.75; }
+  .strip-vid:hover { transform:scale(1.1); opacity:1; }
+  .movie-info { padding:14px 16px 10px; }
+  .movie-title-text { font-family:var(--sans); font-size:14px; font-weight:700; color:var(--text); margin-bottom:5px; }
+  .movie-meta-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  .movie-meta-tag { font-size:11px; color:var(--muted); }
+  .movie-stars { font-size:12px; letter-spacing:1px; }
+  .movie-review { font-size:12px; color:var(--muted); line-height:1.6; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .movie-actions { display:flex; gap:6px; padding:0 14px 14px; flex-wrap:wrap; }
+  .mact-btn { flex:1; min-width:70px; padding:8px 6px; border-radius:var(--r); font-family:var(--sans); font-size:11px; font-weight:700; cursor:pointer; border:1px solid var(--border-hi); background:var(--surface); color:var(--muted); transition:background 0.2s,color 0.2s; text-align:center; white-space:nowrap; }
+  .mact-btn:hover { background:var(--card-hover); color:var(--text); }
+  .mact-btn.danger:hover { background:rgba(232,69,69,0.15); color:#E84545; border-color:rgba(232,69,69,0.3); }
+
+  /* Edit modal */
+  .modal-bg { display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,0.75); backdrop-filter:blur(10px); align-items:center; justify-content:center; padding:20px; }
+  .modal-bg.open { display:flex; }
+  .modal-box { background:var(--surface); border:1px solid var(--border-hi); border-radius:var(--rl); padding:32px; width:min(520px,100%); max-height:90vh; overflow-y:auto; animation:lbIn 0.3s cubic-bezier(.34,1.56,.64,1) both; }
+  .modal-box h3 { font-family:var(--sans); font-size:13px; font-weight:700; color:var(--accent); margin-bottom:20px; letter-spacing:1.5px; text-transform:uppercase; }
+
+  /* Empty state */
+  .empty-state { text-align:center; padding:60px 20px; color:var(--muted); font-size:14px; line-height:1.8; }
+  .empty-icon  { font-size:52px; margin-bottom:16px; opacity:0.35; }
+
+  @media (max-width:600px) { .form-row { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block nav_right %}
+<a href="{{ url_for('index') }}" class="nbtn">Home</a>
+<a href="{{ url_for('index') }}" class="back-btn visible">
+  <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Back
+</a>
+{% endblock %}
+
+{% block body %}
+<!-- Hero -->
+<section class="mood-page-hero" style="background:linear-gradient(135deg,#0A0A0F 0%,#0d0010 100%);">
+  <div class="mood-page-bg" style="background-image:url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1600&q=80');"></div>
+  <div class="mood-page-gradient"></div>
+  <div class="mood-page-info">
+    <div class="mood-tag">{{ g.emoji }} {{ g.label }}</div>
+    <h1 class="mood-page-title">{{ g.label }}<br><span>Collection.</span></h1>
+    <p class="mood-page-desc">{{ g.tagline }}</p>
+    <button class="play-btn" onclick="document.getElementById('log-section').scrollIntoView({behavior:'smooth'})">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      Log a Movie
+    </button>
+  </div>
+</section>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="stat-item"><span class="stat-num">{{ movies|length }}</span><span class="stat-label">Movies Logged</span></div>
+  <div class="stat-item"><span class="stat-num">{{ photo_count }}</span><span class="stat-label">Photos</span></div>
+  <div class="stat-item"><span class="stat-num">{{ clip_count }}</span><span class="stat-label">Clips</span></div>
+  <div class="stat-item"><span class="stat-num">{{ avg_rating ~ '★' if avg_rating else '—' }}</span><span class="stat-label">Avg Rating</span></div>
+</div>
+
+<!-- Log section -->
+<section class="section" id="log-section">
+  <div class="section-header">
+    <span class="section-title">Log a Movie You Watched</span>
+    <div class="section-line"></div>
+  </div>
+
+  <form method="POST" action="{{ url_for('add_movie', genre_key=g.key) }}" enctype="multipart/form-data" id="addForm">
+    <!-- File picker -->
+    <div class="upload-zone" id="uploadZone">
+      <label for="mediaFiles">
+        <div class="upload-icon">{{ g.emoji }}</div>
+        <div class="upload-title">Upload photos, posters &amp; clips</div>
+        <p class="upload-hint">JPG, PNG, GIF, WebP, MP4, WebM, MOV · Click or drag &amp; drop</p>
+      </label>
+      <input type="file" id="mediaFiles" name="media" accept="image/*,video/*" multiple>
+    </div>
+
+    <!-- Preview strip (JS populated) -->
+    <div class="preview-strip" id="previewStrip" style="margin-top:14px;"></div>
+
+    <!-- Movie details -->
+    <div class="add-form">
+      <h3>Movie Details</h3>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Movie Title *</label>
+          <input type="text" name="title" id="movieTitle" placeholder="e.g. Inception" required>
+        </div>
+        <div class="form-group">
+          <label>Year Watched</label>
+          <input type="number" name="year_watched" placeholder="{{ now_year }}" min="1900" max="2099">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Director</label>
+          <input type="text" name="director" placeholder="e.g. Christopher Nolan">
+        </div>
+        <div class="form-group">
+          <label>Release Year</label>
+          <input type="number" name="release_year" placeholder="e.g. 2010" min="1888" max="2099">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Your Rating</label>
+        <div class="star-picker">
+          {% for i in [5,4,3,2,1] %}
+          <input class="star-radio" type="radio" name="rating" id="star{{ i }}" value="{{ i }}">
+          <label class="star-lbl" for="star{{ i }}">⭐</label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Your Review / Notes</label>
+        <textarea name="review" placeholder="What did you think? Favourite scene, quote, feeling…"></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="form-btn form-btn-cancel" onclick="resetForm()">Clear</button>
+        <button type="submit" class="form-btn form-btn-save">Save to Collection</button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<!-- Collection grid -->
+<section class="section">
+  <div class="section-header">
+    <span class="section-title">Your {{ g.label }} Collection</span>
+    <div class="section-line"></div>
+    <span class="section-count">{{ movies|length }} movie{{ 's' if movies|length != 1 else '' }}</span>
+  </div>
+
+  {% if movies %}
+  <div class="movies-grid">
+    {% for movie in movies %}
+    <div class="movie-card fade-in" style="animation-delay:{{ loop.index0 * 0.05 }}s">
+
+      <!-- Cover -->
+      {% if movie.media %}
+      <div class="movie-cover" onclick="openMedia('{{ movie.media[0].filename }}','{{ movie.media[0].type }}','{{ movie.title }}')">
+        {% if movie.media[0].type == 'image' %}
+        <img src="{{ url_for('uploaded_file', filename=movie.media[0].filename) }}" alt="{{ movie.title }}" loading="lazy">
+        {% else %}
+        <video src="{{ url_for('uploaded_file', filename=movie.media[0].filename) }}" muted playsinline preload="metadata"></video>
+        {% endif %}
+        {% if movie.media|length > 1 %}
+        <span class="cover-count">+{{ movie.media|length - 1 }} more</span>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="movie-cover">
+        <div class="movie-cover-empty">{{ g.emoji }}</div>
+      </div>
+      {% endif %}
+
+      <!-- Media strip (extra items) -->
+      {% if movie.media|length > 1 %}
+      <div class="media-strip">
+        {% for item in movie.media[1:] %}
+        {% if item.type == 'image' %}
+        <img class="strip-thumb" src="{{ url_for('uploaded_file', filename=item.filename) }}" alt="{{ item.name }}" loading="lazy" onclick="openMedia('{{ item.filename }}','image','{{ movie.title }}')">
+        {% else %}
+        <div class="strip-vid" onclick="openMedia('{{ item.filename }}','video','{{ movie.title }}')">▶</div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Info -->
+      <div class="movie-info">
+        <div class="movie-title-text">{{ movie.title }}</div>
+        <div class="movie-meta-row">
+          {% if movie.release_year %}<span class="movie-meta-tag">{{ movie.release_year }}</span>{% endif %}
+          {% if movie.director %}<span class="movie-meta-tag">· {{ movie.director }}</span>{% endif %}
+          {% if movie.rating %}<span class="movie-stars">{{ '⭐' * movie.rating }}</span>{% endif %}
+        </div>
+        {% if movie.review %}<div class="movie-review">{{ movie.review }}</div>{% endif %}
+      </div>
+
+      <!-- Actions -->
+      <div class="movie-actions">
+        <!-- Add more media -->
+        <form method="POST" action="{{ url_for('add_media', genre_key=g.key, movie_id=movie.id) }}" enctype="multipart/form-data" style="display:contents">
+          <label class="mact-btn" style="cursor:pointer;">
+            + Media
+            <input type="file" name="media" accept="image/*,video/*" multiple style="display:none" onchange="this.closest('form').submit()">
+          </label>
+        </form>
+
+        <!-- Edit -->
+        <button class="mact-btn" onclick="openEdit('{{ movie.id }}','{{ movie.title|e }}','{{ movie.director|e }}','{{ movie.release_year }}','{{ movie.year_watched }}','{{ movie.rating or 0 }}','{{ movie.review|e }}')">✏ Edit</button>
+
+        <!-- Delete -->
+        <form method="POST" action="{{ url_for('delete_movie', genre_key=g.key, movie_id=movie.id) }}" onsubmit="return confirm('Delete {{ movie.title }}?')">
+          <button type="submit" class="mact-btn danger">🗑 Delete</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">{{ g.emoji }}</div>
+    <p>No {{ g.label|lower }} movies logged yet.<br>Upload a photo or clip above to start your collection!</p>
+  </div>
+  {% endif %}
+</section>
+
+<!-- Edit modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal-box">
+    <h3>Edit Movie</h3>
+    <form method="POST" id="editForm" enctype="multipart/form-data">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Movie Title *</label>
+          <input type="text" name="title" id="editTitle" required>
+        </div>
+        <div class="form-group">
+          <label>Year Watched</label>
+          <input type="number" name="year_watched" id="editYearWatched" min="1900" max="2099">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Director</label>
+          <input type="text" name="director" id="editDirector">
+        </div>
+        <div class="form-group">
+          <label>Release Year</label>
+          <input type="number" name="release_year" id="editReleaseYear" min="1888" max="2099">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Your Rating</label>
+        <div class="star-picker" id="editStars">
+          {% for i in [5,4,3,2,1] %}
+          <input class="star-radio" type="radio" name="rating" id="estar{{ i }}" value="{{ i }}">
+          <label class="star-lbl" for="estar{{ i }}">⭐</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Review / Notes</label>
+        <textarea name="review" id="editReview"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="form-btn form-btn-cancel" onclick="closeEdit()">Cancel</button>
+        <button type="submit" class="form-btn form-btn-save">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const GENRE_KEY = '{{ g.key }}';
+const GENRE_LABEL = '{{ g.label }}';
+const GENRE_EMOJI = '{{ g.emoji }}';
+
+/* ── File preview ── */
+document.getElementById('mediaFiles').addEventListener('change', function() {
+  const strip = document.getElementById('previewStrip');
+  strip.innerHTML = '';
+  Array.from(this.files).forEach(file => {
+    if (file.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.className = 'preview-thumb';
+      img.src = URL.createObjectURL(file);
+      strip.appendChild(img);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'preview-vid'; d.textContent = '▶';
+      strip.appendChild(d);
+    }
+  });
+  document.getElementById('uploadZone').style.borderColor = 'var(--accent)';
+});
+
+/* Drag & drop on upload zone */
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.background = 'rgba(var(--accent-rgb),.08)'; });
+zone.addEventListener('dragleave', () => zone.style.background = '');
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.style.background = '';
+  const input = document.getElementById('mediaFiles');
+  const dt = e.dataTransfer;
+  // Can't set files directly; trigger click approach:
+  const fakeEvent = new Event('change');
+  Object.defineProperty(fakeEvent, 'target', { value: { files: dt.files } });
+  // Just show preview
+  const strip = document.getElementById('previewStrip');
+  strip.innerHTML = '';
+  Array.from(dt.files).forEach(file => {
+    if (file.type.startsWith('image/')) {
+      const img = document.createElement('img'); img.className = 'preview-thumb';
+      img.src = URL.createObjectURL(file); strip.appendChild(img);
+    } else {
+      const d = document.createElement('div'); d.className = 'preview-vid'; d.textContent = '▶';
+      strip.appendChild(d);
+    }
+  });
+});
+
+function resetForm() {
+  document.getElementById('addForm').reset();
+  document.getElementById('previewStrip').innerHTML = '';
+  document.getElementById('uploadZone').style.borderColor = '';
+}
+
+/* ── Media lightbox ── */
+function openMedia(filename, type, title) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lbTitle').textContent = title;
+  document.getElementById('lbMeta').textContent = GENRE_EMOJI + ' ' + GENRE_LABEL;
+  const url = '/uploads/' + filename;
+  document.getElementById('lbContent').innerHTML = type === 'image'
+    ? `<img class="lightbox-img" src="${url}">`
+    : `<video class="lightbox-img" src="${url}" controls autoplay style="background:#000"></video>`;
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+  const v = document.getElementById('lightbox').querySelector('video');
+  if (v) v.pause();
+}
+
+document.getElementById('lightbox').addEventListener('click', e => { if (e.target === document.getElementById('lightbox')) closeLightbox(); });
+
+/* ── Edit modal ── */
+function openEdit(id, title, director, releaseYear, yearWatched, rating, review) {
+  document.getElementById('editForm').action = `/genre/${GENRE_KEY}/movie/${id}/edit`;
+  document.getElementById('editTitle').value       = title;
+  document.getElementById('editDirector').value    = director;
+  document.getElementById('editReleaseYear').value = releaseYear;
+  document.getElementById('editYearWatched').value = yearWatched;
+  document.getElementById('editReview').value      = review;
+  const r = parseInt(rating);
+  if (r) { const radio = document.getElementById('estar' + r); if (radio) radio.checked = true; }
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeEdit() {
+  document.getElementById('editModal').classList.remove('open');
+}
+
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editModal')) closeEdit();
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeEdit(); } });
+
+/* ── Intersection observer (fade-in) ── */
+var genreObserver = new IntersectionObserver(function(entries) {
+  entries.forEach(function(entry) { if (entry.isIntersecting) { entry.target.classList.add('fade-in'); genreObserver.unobserve(entry.target); } });
+}, { threshold: 0.1 });
+document.querySelectorAll('.movie-card').forEach(function(el) { genreObserver.observe(el); });
+</script>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}CineVault — Your Movie Collection{% endblock %}
+
+{% block head %}
+<style>
+  .hero { padding: 130px 5% 80px; min-height: auto; }
+  .genre-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto 64px;
+    animation: fadeUp 0.8s 0.35s ease both;
+  }
+  .mc { text-align: left; padding: 28px 22px 24px; }
+  .mc-emoji { font-size: 36px; margin-bottom: 14px; }
+  .mc-name { font-size: 15px; }
+  .mc-desc { font-size: 11px; }
+  .mc-count {
+    display: inline-block; margin-top: 14px;
+    font-family: var(--sans); font-size: 10px; font-weight: 700;
+    letter-spacing: 1.5px; padding: 3px 10px; border-radius: 20px;
+    background: rgba(255,255,255,0.07); color: var(--muted);
+  }
+  .mc-action   { border-color: rgba(255,107,53,0.2); }
+  .mc-action::before { background: radial-gradient(ellipse at 50% 110%, rgba(255,107,53,0.13), transparent 70%); }
+  .mc-action:hover { box-shadow: 0 24px 60px rgba(255,107,53,0.2), 0 0 0 1px rgba(255,107,53,0.2); }
+  .mc-action .mc-shine { background: #FF6B35; } .mc-action .mc-name { color: #FF6B35; }
+
+  .mc-comedy   { border-color: rgba(255,209,102,0.2); }
+  .mc-comedy::before { background: radial-gradient(ellipse at 50% 110%, rgba(255,209,102,0.13), transparent 70%); }
+  .mc-comedy:hover { box-shadow: 0 24px 60px rgba(255,209,102,0.2), 0 0 0 1px rgba(255,209,102,0.2); }
+  .mc-comedy .mc-shine { background: #FFD166; } .mc-comedy .mc-name { color: #FFD166; }
+
+  .mc-horror   { border-color: rgba(166,108,255,0.2); }
+  .mc-horror::before { background: radial-gradient(ellipse at 50% 110%, rgba(166,108,255,0.13), transparent 70%); }
+  .mc-horror:hover { box-shadow: 0 24px 60px rgba(166,108,255,0.2), 0 0 0 1px rgba(166,108,255,0.2); }
+  .mc-horror .mc-shine { background: #A66CFF; } .mc-horror .mc-name { color: #A66CFF; }
+
+  .mc-romance  { border-color: rgba(255,107,157,0.2); }
+  .mc-romance::before { background: radial-gradient(ellipse at 50% 110%, rgba(255,107,157,0.13), transparent 70%); }
+  .mc-romance:hover { box-shadow: 0 24px 60px rgba(255,107,157,0.2), 0 0 0 1px rgba(255,107,157,0.2); }
+  .mc-romance .mc-shine { background: #FF6B9D; } .mc-romance .mc-name { color: #FF6B9D; }
+
+  .mc-scifi    { border-color: rgba(91,168,255,0.2); }
+  .mc-scifi::before { background: radial-gradient(ellipse at 50% 110%, rgba(91,168,255,0.13), transparent 70%); }
+  .mc-scifi:hover { box-shadow: 0 24px 60px rgba(91,168,255,0.2), 0 0 0 1px rgba(91,168,255,0.2); }
+  .mc-scifi .mc-shine { background: #5BA8FF; } .mc-scifi .mc-name { color: #5BA8FF; }
+
+  .mc-drama    { border-color: rgba(78,205,196,0.2); }
+  .mc-drama::before { background: radial-gradient(ellipse at 50% 110%, rgba(78,205,196,0.13), transparent 70%); }
+  .mc-drama:hover { box-shadow: 0 24px 60px rgba(78,205,196,0.2), 0 0 0 1px rgba(78,205,196,0.2); }
+  .mc-drama .mc-shine { background: #4ECDC4; } .mc-drama .mc-name { color: #4ECDC4; }
+
+  .mc-thriller { border-color: rgba(232,69,69,0.2); }
+  .mc-thriller::before { background: radial-gradient(ellipse at 50% 110%, rgba(232,69,69,0.13), transparent 70%); }
+  .mc-thriller:hover { box-shadow: 0 24px 60px rgba(232,69,69,0.2), 0 0 0 1px rgba(232,69,69,0.2); }
+  .mc-thriller .mc-shine { background: #E84545; } .mc-thriller .mc-name { color: #E84545; }
+
+  .mc-animation{ border-color: rgba(6,214,160,0.2); }
+  .mc-animation::before { background: radial-gradient(ellipse at 50% 110%, rgba(6,214,160,0.13), transparent 70%); }
+  .mc-animation:hover { box-shadow: 0 24px 60px rgba(6,214,160,0.2), 0 0 0 1px rgba(6,214,160,0.2); }
+  .mc-animation .mc-shine { background: #06D6A0; } .mc-animation .mc-name { color: #06D6A0; }
+
+  .total-bar { display:flex; align-items:center; justify-content:center; gap:40px; padding:28px 5%; border-bottom:1px solid var(--border); }
+  .total-stat { text-align:center; }
+  .total-num  { font-family:var(--serif); font-size:32px; font-weight:700; }
+  .total-lbl  { font-family:var(--sans); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-top:3px; }
+
+  .recent-strip { display:flex; gap:10px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none; }
+  .recent-strip::-webkit-scrollbar { display:none; }
+  .recent-chip { flex-shrink:0; background:var(--card); border:1px solid var(--border); border-radius:30px; padding:7px 16px; font-family:var(--sans); font-size:11px; font-weight:600; color:var(--muted); cursor:pointer; transition:background 0.2s,color 0.2s,border-color 0.2s; text-decoration:none; }
+  .recent-chip:hover { background:var(--card-hover); color:var(--text); border-color:var(--border-hi); }
+
+  @media (max-width:900px) { .genre-grid { grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:500px)  { .genre-grid { grid-template-columns:repeat(2,1fr); gap:10px; } .mc { padding:20px 16px 18px; } }
+</style>
+{% endblock %}
+
+{% block body %}
+<section class="hero">
+  <p class="eyebrow">Your Personal Movie Log</p>
+  <h1>Every Film<br><span class="gradient-text">You've Lived.</span></h1>
+  <p class="hero-sub">Upload photos, posters &amp; clips from movies you've watched — sorted by genre.</p>
+  <p class="mood-prompt">✦ Pick a genre to start ✦</p>
+
+  <div class="genre-grid">
+    {% for genre in genres %}
+    <a href="{{ url_for('genre_page', genre_key=genre.key) }}" class="mc mc-{{ genre.key }}">
+      <span class="mc-emoji">{{ genre.emoji }}</span>
+      <span class="mc-name">{{ genre.label }}</span>
+      <p class="mc-desc">{{ genre.tagline }}</p>
+      <span class="mc-count">{{ stats[genre.key] }} movie{{ 's' if stats[genre.key] != 1 else '' }}</span>
+      <div class="mc-shine"></div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="scroll-hint">
+    <span>Scroll to explore</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+{% if total_movies > 0 %}
+<div class="total-bar">
+  <div class="total-stat">
+    <div class="total-num">{{ total_movies }}</div>
+    <div class="total-lbl">Movies Logged</div>
+  </div>
+  <div class="total-stat">
+    <div class="total-num">{{ total_photos }}</div>
+    <div class="total-lbl">Photos</div>
+  </div>
+  <div class="total-stat">
+    <div class="total-num">{{ total_videos }}</div>
+    <div class="total-lbl">Clips</div>
+  </div>
+  <div class="total-stat">
+    <div class="total-num">{{ active_genres }}</div>
+    <div class="total-lbl">Genres</div>
+  </div>
+</div>
+{% endif %}
+
+{% if recent %}
+<section class="section">
+  <div class="section-header">
+    <span class="section-title">Recently Added</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="recent-strip">
+    {% for movie in recent %}
+    <a class="recent-chip" href="{{ url_for('genre_page', genre_key=movie.genre_key) }}">
+      {{ movie.emoji }} {{ movie.title }} · {{ movie.genre_label }}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
