@@ -6,10 +6,12 @@ Stores movie data as JSON files, media as uploaded files on disk.
 import os
 import json
 import uuid
+import hashlib
 from datetime import datetime
+from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    jsonify, send_from_directory, abort
+    jsonify, send_from_directory, abort, session
 )
 from werkzeug.utils import secure_filename
 
@@ -23,6 +25,31 @@ MAX_MB     = 200
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = MAX_MB * 1024 * 1024
 app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
+app.secret_key = 'cinevault-secret-key-change-this'
+
+# ── PIN Protection ───────────────────────────────────────────
+# Set your PIN here (will be stored as a hash)
+PIN_FILE = os.path.join(BASE_DIR, 'pin.json')
+
+def get_pin_hash():
+    if not os.path.exists(PIN_FILE):
+        return None
+    with open(PIN_FILE) as f:
+        return json.load(f).get('pin_hash')
+
+def set_pin_hash(pin):
+    pin_hash = hashlib.sha256(pin.encode()).hexdigest()
+    with open(PIN_FILE, 'w') as f:
+        json.dump({'pin_hash': pin_hash}, f)
+    return pin_hash
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if get_pin_hash() and not session.get('unlocked'):
+            return redirect(url_for('lock_page'))
+        return f(*args, **kwargs)
+    return decorated
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -66,8 +93,60 @@ def file_type(filename):
     ext = filename.rsplit('.', 1)[1].lower()
     return 'video' if ext in {'mp4', 'webm', 'mov', 'avi'} else 'image'
 
+# ── Lock / Unlock routes ──────────────────────────────────────
+@app.route('/lock')
+def lock_page():
+    pin_set = bool(get_pin_hash())
+    return render_template('lock.html', pin_set=pin_set)
+
+@app.route('/unlock', methods=['POST'])
+def unlock():
+    pin = request.form.get('pin', '')
+    pin_hash = hashlib.sha256(pin.encode()).hexdigest()
+    if pin_hash == get_pin_hash():
+        session['unlocked'] = True
+        return redirect(url_for('index'))
+    return render_template('lock.html', pin_set=True, error='Wrong PIN. Try again.')
+
+@app.route('/logout')
+def logout():
+    session.pop('unlocked', None)
+    return redirect(url_for('lock_page'))
+
+@app.route('/setup-pin', methods=['POST'])
+def setup_pin():
+    pin = request.form.get('pin', '').strip()
+    if len(pin) < 4 or not pin.isdigit():
+        return render_template('lock.html', pin_set=False, error='PIN must be at least 4 digits.')
+    set_pin_hash(pin)
+    session['unlocked'] = True
+    return redirect(url_for('index'))
+
+@app.route('/change-pin', methods=['POST'])
+def change_pin():
+    current = request.form.get('current_pin', '')
+    new_pin = request.form.get('new_pin', '').strip()
+    current_hash = hashlib.sha256(current.encode()).hexdigest()
+    if current_hash != get_pin_hash():
+        return redirect(url_for('index') + '?pin_error=1')
+    if len(new_pin) < 4 or not new_pin.isdigit():
+        return redirect(url_for('index') + '?pin_error=2')
+    set_pin_hash(new_pin)
+    return redirect(url_for('index') + '?pin_changed=1')
+
+@app.route('/remove-pin', methods=['POST'])
+def remove_pin():
+    current = request.form.get('current_pin', '')
+    current_hash = hashlib.sha256(current.encode()).hexdigest()
+    if current_hash != get_pin_hash():
+        return redirect(url_for('index') + '?pin_error=1')
+    if os.path.exists(PIN_FILE):
+        os.remove(PIN_FILE)
+    return redirect(url_for('index') + '?pin_removed=1')
+
 # ── Home ─────────────────────────────────────────────────────
 @app.route('/')
+@login_required
 def index():
     data = load_data()
     stats = {}
@@ -105,6 +184,7 @@ def index():
 
 # ── Genre page ────────────────────────────────────────────────
 @app.route('/genre/<genre_key>')
+@login_required
 def genre_page(genre_key):
     if genre_key not in GENRE_MAP:
         abort(404)
@@ -130,6 +210,7 @@ def genre_page(genre_key):
 
 # ── Add movie ─────────────────────────────────────────────────
 @app.route('/genre/<genre_key>/add', methods=['POST'])
+@login_required
 def add_movie(genre_key):
     if genre_key not in GENRE_MAP:
         abort(404)
@@ -177,6 +258,7 @@ def add_movie(genre_key):
 
 # ── Add media to existing movie ───────────────────────────────
 @app.route('/genre/<genre_key>/movie/<movie_id>/add-media', methods=['POST'])
+@login_required
 def add_media(genre_key, movie_id):
     data = load_data()
     movies = data.get(genre_key, [])
@@ -202,6 +284,7 @@ def add_media(genre_key, movie_id):
 
 # ── Edit movie ────────────────────────────────────────────────
 @app.route('/genre/<genre_key>/movie/<movie_id>/edit', methods=['POST'])
+@login_required
 def edit_movie(genre_key, movie_id):
     data = load_data()
     movies = data.get(genre_key, [])
@@ -222,6 +305,7 @@ def edit_movie(genre_key, movie_id):
 
 # ── Delete movie ──────────────────────────────────────────────
 @app.route('/genre/<genre_key>/movie/<movie_id>/delete', methods=['POST'])
+@login_required
 def delete_movie(genre_key, movie_id):
     data = load_data()
     movies = data.get(genre_key, [])
@@ -237,6 +321,7 @@ def delete_movie(genre_key, movie_id):
 
 # ── Delete single media item ──────────────────────────────────
 @app.route('/genre/<genre_key>/movie/<movie_id>/media/<media_id>/delete', methods=['POST'])
+@login_required
 def delete_media(genre_key, movie_id, media_id):
     data = load_data()
     movies = data.get(genre_key, [])
@@ -253,6 +338,7 @@ def delete_media(genre_key, movie_id, media_id):
 
 # ── Serve uploaded files ──────────────────────────────────────
 @app.route('/uploads/<filename>')
+@login_required
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_DIR, filename)
 
