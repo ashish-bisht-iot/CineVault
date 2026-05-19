@@ -21,9 +21,11 @@ function initTheme() {
 function initNav() {
   const nav = document.querySelector('body > nav');
   if (!nav) return;
-  window.addEventListener('scroll', () => {
-    nav.style.boxShadow = window.scrollY > 40 ? '0 1px 0 rgba(255,255,255,0.06)' : 'none';
-  }, { passive: true });
+  const onScroll = () => {
+    nav.classList.toggle('scrolled', window.scrollY > 40);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll(); // apply on load if already scrolled
 
   // Active link highlight
   const path = window.location.pathname;
@@ -38,7 +40,8 @@ window.showToast = function(msg, duration = 2800) {
   if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), duration);
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), duration);
 };
 
 // ── Scroll-triggered fade-in ──────────────────────
@@ -88,7 +91,7 @@ function initMovieCardHover() {
     const cover = card.querySelector('.movie-cover img, .movie-cover video');
     if (!cover) return;
     card.addEventListener('mousemove', (e) => {
-      const rect  = card.getBoundingClientRect();
+      const rect = card.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width  - 0.5) * 10;
       const y = ((e.clientY - rect.top)  / rect.height - 0.5) * 10;
       cover.style.transform = `scale(1.08) translate(${x}px, ${y}px)`;
@@ -101,24 +104,23 @@ function initMovieCardHover() {
 
 // ── Cursor glow (desktop only) ────────────────────
 function initCursorGlow() {
-  if (window.matchMedia('(pointer: coarse)').matches) return; // skip on touch
+  if (window.matchMedia('(pointer: coarse)').matches) return;
   const glow = document.createElement('div');
   glow.id = 'cv-cursor-glow';
   document.body.appendChild(glow);
 
   let mx = -200, my = -200;
   let cx = -200, cy = -200;
-  let raf;
 
   document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
-  document.addEventListener('mouseleave', () => glow.style.opacity = '0');
-  document.addEventListener('mouseenter', () => glow.style.opacity = '1');
+  document.addEventListener('mouseleave', () => { glow.style.opacity = '0'; });
+  document.addEventListener('mouseenter', () => { glow.style.opacity = '1'; });
 
   function tick() {
     cx += (mx - cx) * 0.12;
     cy += (my - cy) * 0.12;
     glow.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -50%)`;
-    raf = requestAnimationFrame(tick);
+    requestAnimationFrame(tick);
   }
   tick();
 }
@@ -135,22 +137,23 @@ function initParticleBurst() {
 function burst(x, y) {
   const colors = ['#A66CFF', '#FF6B9D', '#FFD166', '#5BA8FF', '#06D6A0', '#E84545'];
   for (let i = 0; i < 12; i++) {
-    const p = document.createElement('span');
+    const p     = document.createElement('span');
     p.className = 'cv-particle';
-    const angle  = (i / 12) * Math.PI * 2;
-    const dist   = 40 + Math.random() * 60;
-    const dx     = Math.cos(angle) * dist;
-    const dy     = Math.sin(angle) * dist;
-    const size   = 4 + Math.random() * 6;
-    const color  = colors[Math.floor(Math.random() * colors.length)];
+    const angle = (i / 12) * Math.PI * 2;
+    const dist  = 40 + Math.random() * 60;
+    const size  = 4 + Math.random() * 6;
+    const color = colors[Math.floor(Math.random() * colors.length)];
     Object.assign(p.style, {
-      left: `${x}px`, top: `${y}px`,
-      width: `${size}px`, height: `${size}px`,
+      left:       `${x}px`,
+      top:        `${y}px`,
+      width:      `${size}px`,
+      height:     `${size}px`,
       background: color,
-      '--dx': `${dx}px`, '--dy': `${dy}px`,
+      '--dx':     `${Math.cos(angle) * dist}px`,
+      '--dy':     `${Math.sin(angle) * dist}px`,
     });
     document.body.appendChild(p);
-    p.addEventListener('animationend', () => p.remove());
+    p.addEventListener('animationend', () => p.remove(), { once: true });
   }
 }
 
@@ -163,13 +166,13 @@ function initCountUp() {
       const end = parseFloat(el.dataset.count);
       if (isNaN(end)) return;
       io.unobserve(el);
-      const dec = end % 1 !== 0 ? 1 : 0;
+      const isDecimal = end % 1 !== 0;
       const dur = 1200;
       const start = performance.now();
       function step(now) {
-        const t = Math.min((now - start) / dur, 1);
+        const t    = Math.min((now - start) / dur, 1);
         const ease = 1 - Math.pow(1 - t, 3);
-        el.textContent = (ease * end).toFixed(dec);
+        el.textContent = isDecimal ? (ease * end).toFixed(1) : Math.round(ease * end);
         if (t < 1) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
@@ -177,9 +180,14 @@ function initCountUp() {
   }, { threshold: 0.5 });
 
   document.querySelectorAll('[data-count]').forEach(el => {
-    el.dataset.count = el.textContent.trim();
-    el.textContent = '0';
-    io.observe(el);
+    const raw = el.textContent.trim();
+    // Only animate pure numbers — skip strings like "4.2★" or "—"
+    const num = parseFloat(raw);
+    if (!isNaN(num) && String(num) === raw) {
+      el.dataset.count = raw;
+      el.textContent = '0';
+      io.observe(el);
+    }
   });
 }
 
@@ -207,6 +215,18 @@ function initHeroFloat() {
   }, { passive: true });
 }
 
+// ── PIN feedback toasts ───────────────────────────
+function initPinFeedback() {
+  // Injected by index route into a meta tag to avoid inline script CSP issues
+  const meta = document.querySelector('meta[name="cv-pin-msg"]');
+  if (!meta) return;
+  const msg = meta.content;
+  if (msg === 'changed')       showToast('✅ PIN changed successfully');
+  else if (msg === 'removed')  showToast('🔓 PIN protection removed');
+  else if (msg === 'wrong')    showToast('❌ Wrong PIN — please try again');
+  else if (msg === 'invalid')  showToast('❌ New PIN must be at least 4 digits');
+}
+
 // ── Boot ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
@@ -220,4 +240,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initCountUp();
   initStatsBar();
   initHeroFloat();
+  initPinFeedback();
 });
