@@ -87,7 +87,71 @@
   .empty-state { text-align:center; padding:60px 20px; color:var(--muted); font-size:14px; line-height:1.8; }
   .empty-icon  { font-size:52px; margin-bottom:16px; opacity:0.35; }
 
-  @media (max-width:600px) { .form-row { grid-template-columns:1fr; } }
+  /* ── Ratings analytics ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--rl);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .chart-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 110%, rgba(var(--accent-rgb),0.07), transparent 70%);
+    pointer-events: none;
+  }
+  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-label {
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+  .chart-canvas { display: block; width: 100%; }
+
+  /* Distribution bars (pure CSS+JS, no canvas) */
+  .dist-bars { display: flex; flex-direction: column; gap: 10px; }
+  .dist-row  { display: flex; align-items: center; gap: 10px; }
+  .dist-star { font-size: 13px; min-width: 26px; color: var(--muted); font-family: var(--sans); font-weight: 700; }
+  .dist-track { flex: 1; height: 10px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .dist-fill  { height: 100%; border-radius: 99px; background: var(--accent); transition: width 1s cubic-bezier(.34,1.56,.64,1); width: 0; }
+  .dist-count { font-size: 12px; color: var(--muted); font-family: var(--sans); min-width: 22px; text-align: right; }
+
+  /* Top-rated list */
+  .toplist { display: flex; flex-direction: column; gap: 0; }
+  .toplist-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .toplist-row:last-child { border-bottom: none; }
+  .toplist-rank { font-family: var(--sans); font-size: 11px; font-weight: 700; color: var(--muted); min-width: 20px; }
+  .toplist-title { flex: 1; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .toplist-meta  { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .toplist-stars { font-size: 12px; letter-spacing: 0.5px; }
+
+  /* No-data placeholder */
+  .chart-empty { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 13px; opacity: 0.6; }
+
+  @media (max-width: 640px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .chart-card.wide { grid-column: auto; }
+    .form-row { grid-template-columns: 1fr; }
+  }
 </style>
 {% endblock %}
 
@@ -121,6 +185,65 @@
   <div class="stat-item"><span class="stat-num">{{ clip_count }}</span><span class="stat-label">Clips</span></div>
   <div class="stat-item"><span class="stat-num">{{ avg_rating ~ '★' if avg_rating else '—' }}</span><span class="stat-label">Avg Rating</span></div>
 </div>
+
+<!-- Ratings analytics (only shown when ≥1 rated movie exists) -->
+{% set rated_movies = movies | selectattr('rating') | list %}
+{% if rated_movies %}
+<section class="section" id="ratings-section">
+  <div class="section-header">
+    <span class="section-title">Ratings Analytics</span>
+    <div class="section-line"></div>
+    <span class="section-count">{{ rated_movies|length }} rated</span>
+  </div>
+
+  <div class="charts-grid">
+
+    <!-- Star distribution -->
+    <div class="chart-card">
+      <div class="chart-label">⭐ Rating Distribution</div>
+      <div class="dist-bars" id="distBars">
+        {% for star in [5,4,3,2,1] %}
+        {% set count = rated_movies | selectattr('rating', 'equalto', star) | list | length %}
+        <div class="dist-row">
+          <span class="dist-star">{{ star }}★</span>
+          <div class="dist-track">
+            <div class="dist-fill" data-count="{{ count }}" data-max="{{ rated_movies|length }}" style="width:0%"></div>
+          </div>
+          <span class="dist-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Top rated movies -->
+    <div class="chart-card">
+      <div class="chart-label">🏆 Top Rated Movies</div>
+      {% set top = rated_movies | sort(attribute='rating', reverse=True) %}
+      {% if top %}
+      <div class="toplist">
+        {% for movie in top[:6] %}
+        <div class="toplist-row">
+          <span class="toplist-rank">#{{ loop.index }}</span>
+          <span class="toplist-title">{{ movie.title }}</span>
+          <span class="toplist-meta">
+            <span class="toplist-stars">{{ '⭐' * movie.rating }}</span>
+            {% if movie.release_year %} · {{ movie.release_year }}{% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Ratings over time (canvas line chart) -->
+    <div class="chart-card wide">
+      <div class="chart-label">📈 Ratings Over Time</div>
+      <canvas id="timelineChart" class="chart-canvas" height="160"></canvas>
+    </div>
+
+  </div>
+</section>
+{% endif %}
 
 <!-- Log section -->
 <section class="section" id="log-section">
@@ -445,7 +568,262 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeLightbox(); closeEdit(); }
 });
 
-/* ── Fade-in on scroll ── */
+/* ── Ratings analytics ── */
+const MOVIES_DATA = {{ movies | tojson }};
+
+function initRatingsCharts() {
+  animateDistBars();
+  drawTimelineChart();
+}
+
+/* Animate the star distribution fills */
+function animateDistBars() {
+  const fills = document.querySelectorAll('.dist-fill');
+  if (!fills.length) return;
+  const observer = new IntersectionObserver(entries => {
+    if (!entries[0].isIntersecting) return;
+    observer.disconnect();
+    fills.forEach(fill => {
+      const count = parseInt(fill.dataset.count) || 0;
+      const max   = parseInt(fill.dataset.max)   || 1;
+      const pct   = Math.round((count / max) * 100);
+      fill.style.width = pct + '%';
+    });
+  }, { threshold: 0.3 });
+  const section = document.getElementById('ratings-section');
+  if (section) observer.observe(section);
+}
+
+/* Canvas line chart — ratings over time */
+function drawTimelineChart() {
+  const canvas = document.getElementById('timelineChart');
+  if (!canvas) return;
+
+  // Only movies with a rating AND an added_at date, sorted chronologically
+  const points = MOVIES_DATA
+    .filter(m => m.rating && m.added_at)
+    .map(m => ({ title: m.title, rating: m.rating, date: new Date(m.added_at) }))
+    .sort((a, b) => a.date - b.date);
+
+  if (points.length < 2) {
+    canvas.style.display = 'none';
+    const empty = document.createElement('div');
+    empty.className = 'chart-empty';
+    empty.textContent = 'Log at least 2 rated movies to see the timeline.';
+    canvas.parentNode.appendChild(empty);
+    return;
+  }
+
+  // Resolve CSS variables for colours
+  const style    = getComputedStyle(document.documentElement);
+  const accent   = style.getPropertyValue('--accent').trim()   || '#A66CFF';
+  const mutedCol = style.getPropertyValue('--muted').trim()    || '#7878AA';
+  const borderCol= style.getPropertyValue('--border').trim()   || 'rgba(255,255,255,0.07)';
+  const textCol  = style.getPropertyValue('--text').trim()     || '#EEEEFF';
+
+  const DPR  = window.devicePixelRatio || 1;
+  const W    = canvas.offsetWidth  || canvas.parentNode.offsetWidth || 600;
+  const H    = 160;
+  canvas.width  = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+
+  const PAD = { top: 16, right: 24, bottom: 36, left: 32 };
+  const cw  = W - PAD.left - PAD.right;
+  const ch  = H - PAD.top  - PAD.bottom;
+
+  // Map rating 1-5 to y coordinate
+  const yFor = r => PAD.top + ch - ((r - 1) / 4) * ch;
+  // Map index to x coordinate
+  const xFor = i => PAD.left + (i / (points.length - 1)) * cw;
+
+  /* Grid lines at each star level */
+  ctx.strokeStyle = borderCol;
+  ctx.lineWidth   = 1;
+  [1,2,3,4,5].forEach(r => {
+    const y = yFor(r);
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, y);
+    ctx.lineTo(PAD.left + cw, y);
+    ctx.stroke();
+    // Y axis labels
+    ctx.fillStyle = mutedCol;
+    ctx.font = `600 10px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(r + '★', PAD.left - 6, y + 4);
+  });
+
+  /* Gradient fill under line */
+  const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + ch);
+  grad.addColorStop(0, accent.replace(')', ',0.35)').replace('rgb', 'rgba'));
+  grad.addColorStop(1, accent.replace(')', ',0.00)').replace('rgb', 'rgba'));
+  // Fallback gradient if variable isn't rgb format
+  const gradFallback = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + ch);
+  gradFallback.addColorStop(0, 'rgba(166,108,255,0.35)');
+  gradFallback.addColorStop(1, 'rgba(166,108,255,0.00)');
+
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    const x = xFor(i), y = yFor(p.rating);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(xFor(points.length - 1), PAD.top + ch);
+  ctx.lineTo(xFor(0), PAD.top + ch);
+  ctx.closePath();
+  try { ctx.fillStyle = grad; } catch (_) { ctx.fillStyle = gradFallback; }
+  ctx.fill();
+
+  /* Main line */
+  ctx.beginPath();
+  ctx.lineWidth   = 2.5;
+  ctx.strokeStyle = accent;
+  ctx.lineJoin    = 'round';
+  ctx.lineCap     = 'round';
+  points.forEach((p, i) => {
+    const x = xFor(i), y = yFor(p.rating);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  /* Dots + hover tooltip */
+  const dotRadius = 5;
+  const tooltipState = { active: false, idx: -1 };
+
+  function drawDots(hoveredIdx) {
+    points.forEach((p, i) => {
+      const x = xFor(i), y = yFor(p.rating);
+      ctx.beginPath();
+      ctx.arc(x, y, i === hoveredIdx ? dotRadius + 2 : dotRadius, 0, Math.PI * 2);
+      ctx.fillStyle   = i === hoveredIdx ? '#fff' : accent;
+      ctx.strokeStyle = accent;
+      ctx.lineWidth   = 2;
+      ctx.fill();
+      ctx.stroke();
+    });
+  }
+
+  function drawTooltip(idx) {
+    const p = points[idx];
+    const x = xFor(idx), y = yFor(p.rating);
+    const label   = p.title + '  ' + '⭐'.repeat(p.rating);
+    const dateStr = p.date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    const full    = label + '  ·  ' + dateStr;
+    ctx.font = '600 12px sans-serif';
+    const tw = ctx.measureText(full).width + 20;
+    const th = 32;
+    let tx = x - tw / 2;
+    if (tx < PAD.left) tx = PAD.left;
+    if (tx + tw > W - PAD.right) tx = W - PAD.right - tw;
+    const ty = y - th - 10 < PAD.top ? y + 10 : y - th - 10;
+
+    ctx.fillStyle   = textCol.includes('#') ? textCol : '#EEEEFF';
+    ctx.strokeStyle = accent;
+    ctx.lineWidth   = 1;
+    roundRect(ctx, tx, ty, tw, th, 6);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#111';
+    ctx.textAlign = 'center';
+    ctx.fillText(full, tx + tw / 2, ty + 21);
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.arcTo(x + w, y, x + w, y + r, r);
+    c.lineTo(x + w, y + h - r);
+    c.arcTo(x + w, y + h, x + w - r, y + h, r);
+    c.lineTo(x + r, y + h);
+    c.arcTo(x, y + h, x, y + h - r, r);
+    c.lineTo(x, y + r);
+    c.arcTo(x, y, x + r, y, r);
+    c.closePath();
+  }
+
+  function redraw(hoveredIdx) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Re-draw grid
+    ctx.strokeStyle = borderCol;
+    ctx.lineWidth   = 1;
+    [1,2,3,4,5].forEach(r => {
+      const y = yFor(r);
+      ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cw, y); ctx.stroke();
+      ctx.fillStyle = mutedCol; ctx.font = '600 10px sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText(r + '★', PAD.left - 6, y + 4);
+    });
+
+    // Re-draw fill
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const x = xFor(i), y = yFor(p.rating);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineTo(xFor(points.length - 1), PAD.top + ch);
+    ctx.lineTo(xFor(0), PAD.top + ch);
+    ctx.closePath();
+    try { ctx.fillStyle = grad; } catch (_) { ctx.fillStyle = gradFallback; }
+    ctx.fill();
+
+    // Re-draw line
+    ctx.beginPath(); ctx.lineWidth = 2.5; ctx.strokeStyle = accent;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    points.forEach((p, i) => {
+      const x = xFor(i), y = yFor(p.rating);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    drawDots(hoveredIdx);
+
+    // X axis dates (first & last)
+    ctx.fillStyle = mutedCol; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(points[0].date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }), PAD.left, H - 8);
+    ctx.textAlign = 'right';
+    ctx.fillText(points[points.length-1].date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }), PAD.left + cw, H - 8);
+
+    if (hoveredIdx >= 0) drawTooltip(hoveredIdx);
+  }
+
+  redraw(-1);
+
+  // Mouse hover interaction
+  function getHoveredIdx(mouseX) {
+    let best = -1, bestDist = Infinity;
+    points.forEach((p, i) => {
+      const d = Math.abs(xFor(i) - mouseX);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    return bestDist < 30 ? best : -1;
+  }
+
+  canvas.addEventListener('mousemove', e => {
+    const rect  = canvas.getBoundingClientRect();
+    const mx    = e.clientX - rect.left;
+    const idx   = getHoveredIdx(mx);
+    canvas.style.cursor = idx >= 0 ? 'pointer' : 'default';
+    if (idx !== tooltipState.idx) {
+      tooltipState.idx = idx;
+      redraw(idx);
+    }
+  });
+  canvas.addEventListener('mouseleave', () => {
+    tooltipState.idx = -1;
+    canvas.style.cursor = 'default';
+    redraw(-1);
+  });
+
+  // Redraw on theme change
+  document.getElementById('themeToggle')?.addEventListener('click', () => {
+    setTimeout(() => redraw(tooltipState.idx), 50);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initRatingsCharts);
 var genreObserver = new IntersectionObserver(function(entries) {
   entries.forEach(function(entry) {
     if (entry.isIntersecting) {
