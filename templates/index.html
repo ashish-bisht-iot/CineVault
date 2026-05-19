@@ -2,6 +2,17 @@
 {% block title %}CineVault — Your Movie Collection{% endblock %}
 
 {% block head %}
+{% if pin_messages %}
+  {% if pin_messages.changed %}
+  <meta name="cv-pin-msg" content="changed">
+  {% elif pin_messages.removed %}
+  <meta name="cv-pin-msg" content="removed">
+  {% elif pin_messages.error == 'Wrong PIN — please try again.' %}
+  <meta name="cv-pin-msg" content="wrong">
+  {% elif pin_messages.error %}
+  <meta name="cv-pin-msg" content="invalid">
+  {% endif %}
+{% endif %}
 <style>
   .hero { padding: 130px 5% 80px; min-height: auto; }
   .genre-grid {
