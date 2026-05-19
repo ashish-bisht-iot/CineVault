@@ -13,7 +13,7 @@
 
   /* Upload zone */
   .upload-zone { border:2px dashed rgba(var(--accent-rgb),0.35); border-radius:var(--rl); cursor:pointer; transition:border-color 0.3s,background 0.3s; background:rgba(var(--accent-rgb),0.04); position:relative; text-align:center; }
-  .upload-zone:hover { border-color:var(--accent); background:rgba(var(--accent-rgb),0.08); }
+  .upload-zone:hover, .upload-zone.drag-over { border-color:var(--accent); background:rgba(var(--accent-rgb),0.08); }
   .upload-zone label { display:block; padding:40px 32px; cursor:pointer; }
   .upload-zone input[type="file"] { display:none; }
   .upload-icon { font-size:40px; margin-bottom:12px; }
@@ -23,7 +23,8 @@
   /* Add movie form */
   .add-form { background:var(--card); border:1px solid var(--border-hi); border-radius:var(--rl); padding:32px; margin-top:20px; }
   .add-form h3 { font-family:var(--sans); font-size:13px; font-weight:700; color:var(--accent); margin-bottom:20px; letter-spacing:1.5px; text-transform:uppercase; }
-  .preview-strip { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .preview-strip { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; min-height:0; }
+  .preview-strip:not(:empty) { margin-bottom:18px; }
   .preview-thumb { width:60px; height:60px; border-radius:var(--r); object-fit:cover; border:1px solid var(--border-hi); }
   .preview-vid   { width:60px; height:60px; border-radius:var(--r); background:var(--surface); border:1px solid var(--border-hi); display:flex; align-items:center; justify-content:center; font-size:22px; }
   .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
@@ -37,15 +38,12 @@
   .form-group textarea:focus { border-color:var(--accent); }
   .form-group select option { background:var(--surface); }
   .form-group textarea { resize:vertical; min-height:80px; }
-  .star-picker { display:flex; gap:6px; }
+  /* Star picker — RTL flex trick for CSS-only highlight */
+  .star-picker { display:flex; flex-direction:row-reverse; justify-content:flex-end; gap:6px; }
   .star-radio { display:none; }
   .star-lbl { font-size:24px; cursor:pointer; opacity:0.3; transition:opacity 0.15s,transform 0.15s; }
-  .star-radio:checked ~ .star-lbl { opacity:0.3; }
   .star-lbl:hover,
-  .star-lbl:hover ~ .star-lbl { opacity:0.3; }
-  /* CSS-only star highlight trick (RTL flex) */
-  .star-picker { flex-direction:row-reverse; justify-content:flex-end; }
-  .star-lbl:hover, .star-lbl:hover ~ .star-lbl,
+  .star-lbl:hover ~ .star-lbl,
   .star-radio:checked ~ .star-lbl { opacity:1; }
   .form-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
   .form-btn { padding:10px 26px; border-radius:var(--r); font-family:var(--sans); font-size:13px; font-weight:700; cursor:pointer; border:none; transition:transform 0.15s; }
@@ -102,8 +100,8 @@
 
 {% block body %}
 <!-- Hero -->
-<section class="mood-page-hero" style="background:linear-gradient(135deg,#0A0A0F 0%,#0d0010 100%);">
-  <div class="mood-page-bg" style="background-image:url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1600&q=80');"></div>
+<section class="mood-page-hero">
+  <div class="mood-page-bg" style="background-image:url('{{ hero_image }}');"></div>
   <div class="mood-page-gradient"></div>
   <div class="mood-page-info">
     <div class="mood-tag">{{ g.emoji }} {{ g.label }}</div>
@@ -143,7 +141,7 @@
     </div>
 
     <!-- Preview strip (JS populated) -->
-    <div class="preview-strip" id="previewStrip" style="margin-top:14px;"></div>
+    <div class="preview-strip" id="previewStrip"></div>
 
     <!-- Movie details -->
     <div class="add-form">
@@ -259,10 +257,18 @@
         </form>
 
         <!-- Edit -->
-        <button class="mact-btn" onclick="openEdit('{{ movie.id }}','{{ movie.title|e }}','{{ movie.director|e }}','{{ movie.release_year }}','{{ movie.year_watched }}','{{ movie.rating or 0 }}','{{ movie.review|e }}')">✏ Edit</button>
+        <button class="mact-btn" onclick="openEdit(
+          '{{ movie.id }}',
+          {{ movie.title | tojson }},
+          {{ (movie.director or '') | tojson }},
+          {{ (movie.release_year | string) | tojson }},
+          {{ (movie.year_watched | string) | tojson }},
+          {{ (movie.rating or 0) | tojson }},
+          {{ (movie.review or '') | tojson }}
+        )">✏ Edit</button>
 
         <!-- Delete -->
-        <form method="POST" action="{{ url_for('delete_movie', genre_key=g.key, movie_id=movie.id) }}" onsubmit="return confirm('Delete {{ movie.title }}?')">
+        <form method="POST" action="{{ url_for('delete_movie', genre_key=g.key, movie_id=movie.id) }}" onsubmit="return confirm('Delete {{ movie.title | e }}?')">
           <button type="submit" class="mact-btn danger">🗑 Delete</button>
         </form>
       </div>
@@ -282,7 +288,7 @@
 <div class="modal-bg" id="editModal">
   <div class="modal-box">
     <h3>Edit Movie</h3>
-    <form method="POST" id="editForm" enctype="multipart/form-data">
+    <form method="POST" id="editForm">
       <div class="form-row">
         <div class="form-group">
           <label>Movie Title *</label>
@@ -327,15 +333,15 @@
 
 {% block scripts %}
 <script>
-const GENRE_KEY = '{{ g.key }}';
-const GENRE_LABEL = '{{ g.label }}';
-const GENRE_EMOJI = '{{ g.emoji }}';
+const GENRE_KEY   = {{ g.key   | tojson }};
+const GENRE_LABEL = {{ g.label | tojson }};
+const GENRE_EMOJI = {{ g.emoji | tojson }};
 
-/* ── File preview ── */
-document.getElementById('mediaFiles').addEventListener('change', function() {
+/* ── File preview helper ── */
+function renderPreview(files) {
   const strip = document.getElementById('previewStrip');
   strip.innerHTML = '';
-  Array.from(this.files).forEach(file => {
+  Array.from(files).forEach(file => {
     if (file.type.startsWith('image/')) {
       const img = document.createElement('img');
       img.className = 'preview-thumb';
@@ -343,36 +349,41 @@ document.getElementById('mediaFiles').addEventListener('change', function() {
       strip.appendChild(img);
     } else {
       const d = document.createElement('div');
-      d.className = 'preview-vid'; d.textContent = '▶';
+      d.className = 'preview-vid';
+      d.textContent = '▶';
       strip.appendChild(d);
     }
   });
   document.getElementById('uploadZone').style.borderColor = 'var(--accent)';
+}
+
+document.getElementById('mediaFiles').addEventListener('change', function() {
+  renderPreview(this.files);
 });
 
-/* Drag & drop on upload zone */
+/* ── Drag & drop ── */
 const zone = document.getElementById('uploadZone');
-zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.background = 'rgba(var(--accent-rgb),.08)'; });
-zone.addEventListener('dragleave', () => zone.style.background = '');
+const fileInput = document.getElementById('mediaFiles');
+
+zone.addEventListener('dragover', e => {
+  e.preventDefault();
+  zone.classList.add('drag-over');
+});
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
 zone.addEventListener('drop', e => {
-  e.preventDefault(); zone.style.background = '';
-  const input = document.getElementById('mediaFiles');
-  const dt = e.dataTransfer;
-  // Can't set files directly; trigger click approach:
-  const fakeEvent = new Event('change');
-  Object.defineProperty(fakeEvent, 'target', { value: { files: dt.files } });
-  // Just show preview
-  const strip = document.getElementById('previewStrip');
-  strip.innerHTML = '';
-  Array.from(dt.files).forEach(file => {
-    if (file.type.startsWith('image/')) {
-      const img = document.createElement('img'); img.className = 'preview-thumb';
-      img.src = URL.createObjectURL(file); strip.appendChild(img);
-    } else {
-      const d = document.createElement('div'); d.className = 'preview-vid'; d.textContent = '▶';
-      strip.appendChild(d);
+  e.preventDefault();
+  zone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) {
+    // Use DataTransfer to assign files to input (supported in modern browsers)
+    try {
+      const dt = new DataTransfer();
+      Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
+      fileInput.files = dt.files;
+    } catch (_) {
+      // Fallback: just show preview without assigning to input
     }
-  });
+    renderPreview(e.dataTransfer.files);
+  }
 });
 
 function resetForm() {
@@ -385,23 +396,26 @@ function resetForm() {
 function openMedia(filename, type, title) {
   const lb = document.getElementById('lightbox');
   document.getElementById('lbTitle').textContent = title;
-  document.getElementById('lbMeta').textContent = GENRE_EMOJI + ' ' + GENRE_LABEL;
+  document.getElementById('lbMeta').textContent  = GENRE_EMOJI + ' ' + GENRE_LABEL;
   const url = '/uploads/' + filename;
   document.getElementById('lbContent').innerHTML = type === 'image'
-    ? `<img class="lightbox-img" src="${url}">`
+    ? `<img class="lightbox-img" src="${url}" alt="${title}">`
     : `<video class="lightbox-img" src="${url}" controls autoplay style="background:#000"></video>`;
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
 function closeLightbox() {
-  document.getElementById('lightbox').classList.remove('open');
+  const lb = document.getElementById('lightbox');
+  lb.classList.remove('open');
   document.body.style.overflow = '';
-  const v = document.getElementById('lightbox').querySelector('video');
+  const v = lb.querySelector('video');
   if (v) v.pause();
 }
 
-document.getElementById('lightbox').addEventListener('click', e => { if (e.target === document.getElementById('lightbox')) closeLightbox(); });
+document.getElementById('lightbox').addEventListener('click', e => {
+  if (e.target === document.getElementById('lightbox')) closeLightbox();
+});
 
 /* ── Edit modal ── */
 function openEdit(id, title, director, releaseYear, yearWatched, rating, review) {
@@ -412,7 +426,10 @@ function openEdit(id, title, director, releaseYear, yearWatched, rating, review)
   document.getElementById('editYearWatched').value = yearWatched;
   document.getElementById('editReview').value      = review;
   const r = parseInt(rating);
-  if (r) { const radio = document.getElementById('estar' + r); if (radio) radio.checked = true; }
+  if (r) {
+    const radio = document.getElementById('estar' + r);
+    if (radio) radio.checked = true;
+  }
   document.getElementById('editModal').classList.add('open');
 }
 
@@ -424,12 +441,21 @@ document.getElementById('editModal').addEventListener('click', e => {
   if (e.target === document.getElementById('editModal')) closeEdit();
 });
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeEdit(); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeLightbox(); closeEdit(); }
+});
 
-/* ── Intersection observer (fade-in) ── */
+/* ── Fade-in on scroll ── */
 var genreObserver = new IntersectionObserver(function(entries) {
-  entries.forEach(function(entry) { if (entry.isIntersecting) { entry.target.classList.add('fade-in'); genreObserver.unobserve(entry.target); } });
-}, { threshold: 0.1 });
-document.querySelectorAll('.movie-card').forEach(function(el) { genreObserver.observe(el); });
+  entries.forEach(function(entry) {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('fade-in');
+      genreObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.08 });
+document.querySelectorAll('.movie-card').forEach(function(el) {
+  genreObserver.observe(el);
+});
 </script>
 {% endblock %}
