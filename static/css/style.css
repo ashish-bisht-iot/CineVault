@@ -146,6 +146,10 @@ body > nav.scrolled {
   box-shadow: 0 1px 0 var(--border-hi), 0 4px 30px rgba(0,0,0,0.5);
 }
 
+[data-theme="light"] body > nav.scrolled {
+  box-shadow: 0 1px 0 rgba(0,0,0,0.1), 0 4px 20px rgba(0,0,0,0.08);
+}
+
 .logo {
   font-family: var(--sans);
   font-size: 22px;
@@ -787,27 +791,64 @@ body > nav.scrolled {
 .play-btn svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
 
 /* ══════════════════════════════════════════════════
-   MOOD/GENRE ACCENT COLOURS
+   GENRE ACCENT COLOURS  (data-genre on <html>)
+   These drive .mood-tag, .mood-page-title span,
+   .play-btn, and .stat-num for each genre page.
 ══════════════════════════════════════════════════ */
-[data-mood="happy"] .mood-tag    { color: var(--happy); border-color: rgba(255,184,48,0.35); background: rgba(255,184,48,0.1); }
-[data-mood="happy"] .mood-page-title span { color: var(--happy); }
-[data-mood="happy"] .play-btn    { background: var(--happy); color: #0A0A0F; box-shadow: 0 8px 30px rgba(255,184,48,0.4); }
-[data-mood="happy"] .stat-num    { color: var(--happy); }
 
-[data-mood="chill"] .mood-tag    { color: var(--chill); border-color: rgba(91,168,255,0.35); background: rgba(91,168,255,0.1); }
-[data-mood="chill"] .mood-page-title span { color: var(--chill); }
-[data-mood="chill"] .play-btn    { background: var(--chill); color: #fff; box-shadow: 0 8px 30px rgba(91,168,255,0.4); }
-[data-mood="chill"] .stat-num    { color: var(--chill); }
+/* Action — #FF6B35 */
+[data-genre="action"] .mood-tag          { color: #FF6B35; border-color: rgba(255,107,53,0.35); background: rgba(255,107,53,0.1); }
+[data-genre="action"] .mood-page-title span { color: #FF6B35; }
+[data-genre="action"] .play-btn          { background: #FF6B35; color: #fff; box-shadow: 0 8px 30px rgba(255,107,53,0.4); }
+[data-genre="action"] .stat-num          { color: #FF6B35; }
 
-[data-mood="romantic"] .mood-tag  { color: var(--romantic); border-color: rgba(255,107,157,0.35); background: rgba(255,107,157,0.1); }
-[data-mood="romantic"] .mood-page-title span { color: var(--romantic); }
-[data-mood="romantic"] .play-btn  { background: var(--romantic); color: #fff; box-shadow: 0 8px 30px rgba(255,107,157,0.4); }
-[data-mood="romantic"] .stat-num  { color: var(--romantic); }
+/* Comedy — #FFD166 */
+[data-genre="comedy"] .mood-tag          { color: #FFD166; border-color: rgba(255,209,102,0.35); background: rgba(255,209,102,0.1); }
+[data-genre="comedy"] .mood-page-title span { color: #FFD166; }
+[data-genre="comedy"] .play-btn          { background: #FFD166; color: #1A1A0A; box-shadow: 0 8px 30px rgba(255,209,102,0.4); }
+[data-genre="comedy"] .stat-num          { color: #FFD166; }
 
-[data-mood="dark"] .mood-tag     { color: var(--dark); border-color: rgba(166,108,255,0.35); background: rgba(166,108,255,0.1); }
-[data-mood="dark"] .mood-page-title span { color: var(--dark); }
-[data-mood="dark"] .play-btn     { background: var(--dark); color: #fff; box-shadow: 0 8px 30px rgba(166,108,255,0.4); }
-[data-mood="dark"] .stat-num     { color: var(--dark); }
+/* Horror — #A66CFF */
+[data-genre="horror"] .mood-tag          { color: #A66CFF; border-color: rgba(166,108,255,0.35); background: rgba(166,108,255,0.1); }
+[data-genre="horror"] .mood-page-title span { color: #A66CFF; }
+[data-genre="horror"] .play-btn          { background: #A66CFF; color: #fff; box-shadow: 0 8px 30px rgba(166,108,255,0.4); }
+[data-genre="horror"] .stat-num          { color: #A66CFF; }
+
+/* Romance — #FF6B9D */
+[data-genre="romance"] .mood-tag         { color: #FF6B9D; border-color: rgba(255,107,157,0.35); background: rgba(255,107,157,0.1); }
+[data-genre="romance"] .mood-page-title span { color: #FF6B9D; }
+[data-genre="romance"] .play-btn         { background: #FF6B9D; color: #fff; box-shadow: 0 8px 30px rgba(255,107,157,0.4); }
+[data-genre="romance"] .stat-num         { color: #FF6B9D; }
+
+/* Sci-Fi — #5BA8FF */
+[data-genre="scifi"] .mood-tag           { color: #5BA8FF; border-color: rgba(91,168,255,0.35); background: rgba(91,168,255,0.1); }
+[data-genre="scifi"] .mood-page-title span { color: #5BA8FF; }
+[data-genre="scifi"] .play-btn           { background: #5BA8FF; color: #fff; box-shadow: 0 8px 30px rgba(91,168,255,0.4); }
+[data-genre="scifi"] .stat-num           { color: #5BA8FF; }
+
+/* Drama — #4ECDC4 */
+[data-genre="drama"] .mood-tag           { color: #4ECDC4; border-color: rgba(78,205,196,0.35); background: rgba(78,205,196,0.1); }
+[data-genre="drama"] .mood-page-title span { color: #4ECDC4; }
+[data-genre="drama"] .play-btn           { background: #4ECDC4; color: #0A0F0E; box-shadow: 0 8px 30px rgba(78,205,196,0.4); }
+[data-genre="drama"] .stat-num           { color: #4ECDC4; }
+
+/* Thriller — #E84545 */
+[data-genre="thriller"] .mood-tag        { color: #E84545; border-color: rgba(232,69,69,0.35); background: rgba(232,69,69,0.1); }
+[data-genre="thriller"] .mood-page-title span { color: #E84545; }
+[data-genre="thriller"] .play-btn        { background: #E84545; color: #fff; box-shadow: 0 8px 30px rgba(232,69,69,0.4); }
+[data-genre="thriller"] .stat-num        { color: #E84545; }
+
+/* Animation — #06D6A0 */
+[data-genre="animation"] .mood-tag       { color: #06D6A0; border-color: rgba(6,214,160,0.35); background: rgba(6,214,160,0.1); }
+[data-genre="animation"] .mood-page-title span { color: #06D6A0; }
+[data-genre="animation"] .play-btn       { background: #06D6A0; color: #051A13; box-shadow: 0 8px 30px rgba(6,214,160,0.4); }
+[data-genre="animation"] .stat-num       { color: #06D6A0; }
+
+/* Legacy mood aliases (kept for backward compat) */
+[data-mood="happy"]   { --accent: var(--happy);   }
+[data-mood="chill"]   { --accent: var(--chill);   }
+[data-mood="romantic"]{ --accent: var(--romantic); }
+[data-mood="dark"]    { --accent: var(--dark);    }
 
 /* ══════════════════════════════════════════════════
    HOME STATS STRIP
