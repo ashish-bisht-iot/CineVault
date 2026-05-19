@@ -9,10 +9,11 @@ import uuid
 import hashlib
 from datetime import datetime
 from functools import wraps
+from typing import Optional
 
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, send_from_directory, abort, session
+    url_for, send_from_directory, abort, session, flash
 )
 from werkzeug.utils import secure_filename
 
@@ -38,6 +39,18 @@ GENRES = [
 ]
 GENRE_MAP = {g['key']: g for g in GENRES}
 
+# Genre-specific hero background images (Unsplash, varied per genre)
+GENRE_HERO_IMAGES = {
+    'action':    'https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=1600&q=80',
+    'comedy':    'https://images.unsplash.com/photo-1527224857830-43a7acc85260?w=1600&q=80',
+    'horror':    'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1600&q=80',
+    'romance':   'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=1600&q=80',
+    'scifi':     'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1600&q=80',
+    'drama':     'https://images.unsplash.com/photo-1580477667995-2b94f01c9516?w=1600&q=80',
+    'thriller':  'https://images.unsplash.com/photo-1599693253660-ec08dbc3e4fc?w=1600&q=80',
+    'animation': 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1600&q=80',
+}
+
 # ── App setup ────────────────────────────────────────────────
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_MB * 1024 * 1024
@@ -50,7 +63,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 def _hash(pin: str) -> str:
     return hashlib.sha256(pin.encode()).hexdigest()
 
-def get_pin_hash() -> str | None:
+def get_pin_hash() -> Optional[str]:
     if not os.path.exists(PIN_FILE):
         return None
     with open(PIN_FILE) as f:
@@ -90,7 +103,7 @@ def allowed_file(filename: str) -> bool:
 def file_type(filename: str) -> str:
     return 'video' if filename.rsplit('.', 1)[1].lower() in VIDEO_EXTENSIONS else 'image'
 
-def save_uploaded_file(f) -> dict | None:
+def save_uploaded_file(f) -> Optional[dict]:
     """Save one uploaded file; return media dict or None if invalid."""
     if not (f and f.filename and allowed_file(f.filename)):
         return None
@@ -112,19 +125,24 @@ def delete_media_file(filename: str) -> None:
 # ── Template globals ──────────────────────────────────────────
 @app.context_processor
 def inject_globals():
-    return {'genres': GENRES, 'now_year': datetime.now().year, 'g_info': None}
+    return {
+        'genres':    GENRES,
+        'now_year':  datetime.now().year,
+        'g_info':    None,
+        'pin_set':   bool(get_pin_hash()),
+    }
 
 # ── Lock / Auth routes ────────────────────────────────────────
 @app.route('/lock')
 def lock_page():
-    return render_template('lock.html', pin_set=bool(get_pin_hash()))
+    return render_template('lock.html', pin_set=bool(get_pin_hash()), error=None)
 
 @app.route('/unlock', methods=['POST'])
 def unlock():
     if pin_matches(request.form.get('pin', '')):
         session['unlocked'] = True
         return redirect(url_for('index'))
-    return render_template('lock.html', pin_set=True, error='Wrong PIN. Try again.')
+    return render_template('lock.html', pin_set=True, error='Wrong PIN — try again.')
 
 @app.route('/logout')
 def logout():
@@ -145,19 +163,24 @@ def change_pin():
     current = request.form.get('current_pin', '')
     new_pin = request.form.get('new_pin', '').strip()
     if not pin_matches(current):
-        return redirect(url_for('index') + '?pin_error=wrong')
-    if len(new_pin) < 4 or not new_pin.isdigit():
-        return redirect(url_for('index') + '?pin_error=invalid')
-    save_pin_hash(new_pin)
-    return redirect(url_for('index') + '?pin_changed=1')
+        flash('pin_error:wrong', 'pin')
+    elif len(new_pin) < 4 or not new_pin.isdigit():
+        flash('pin_error:invalid', 'pin')
+    else:
+        save_pin_hash(new_pin)
+        flash('pin_changed', 'pin')
+    return redirect(url_for('index'))
 
 @app.route('/remove-pin', methods=['POST'])
 def remove_pin():
     if not pin_matches(request.form.get('current_pin', '')):
-        return redirect(url_for('index') + '?pin_error=wrong')
-    if os.path.exists(PIN_FILE):
-        os.remove(PIN_FILE)
-    return redirect(url_for('index') + '?pin_removed=1')
+        flash('pin_error:wrong', 'pin')
+    else:
+        if os.path.exists(PIN_FILE):
+            os.remove(PIN_FILE)
+        session.pop('unlocked', None)
+        flash('pin_removed', 'pin')
+    return redirect(url_for('index'))
 
 # ── Home ──────────────────────────────────────────────────────
 @app.route('/')
@@ -186,10 +209,25 @@ def index():
             if len(recent) < 10:
                 recent.append({**movie, 'genre_key': g['key'], 'genre_label': g['label'], 'emoji': g['emoji']})
 
+    # Read flash messages for PIN feedback
+    pin_messages = {'changed': False, 'removed': False, 'error': None}
+    for msg in session.get('_flashes', []):
+        if isinstance(msg, tuple) and msg[0] == 'pin':
+            val = msg[1]
+            if val == 'pin_changed':
+                pin_messages['changed'] = True
+            elif val == 'pin_removed':
+                pin_messages['removed'] = True
+            elif val == 'pin_error:wrong':
+                pin_messages['error'] = 'Wrong PIN — please try again.'
+            elif val == 'pin_error:invalid':
+                pin_messages['error'] = 'New PIN must be at least 4 digits.'
+
     return render_template('index.html',
         stats=stats, recent=recent,
         total_movies=total_movies, total_photos=total_photos,
         total_videos=total_videos, active_genres=active_genres,
+        pin_messages=pin_messages,
     )
 
 # ── Genre page ────────────────────────────────────────────────
@@ -201,15 +239,17 @@ def genre_page(genre_key):
     g      = GENRE_MAP[genre_key]
     movies = load_data().get(genre_key, [])
 
-    all_media = [m for movie in movies for m in movie.get('media', [])]
-    photos    = sum(1 for m in all_media if m['type'] == 'image')
-    clips     = sum(1 for m in all_media if m['type'] == 'video')
-    ratings   = [movie['rating'] for movie in movies if movie.get('rating')]
+    all_media  = [m for movie in movies for m in movie.get('media', [])]
+    photos     = sum(1 for m in all_media if m['type'] == 'image')
+    clips      = sum(1 for m in all_media if m['type'] == 'video')
+    ratings    = [movie['rating'] for movie in movies if movie.get('rating')]
     avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else None
+    hero_image = GENRE_HERO_IMAGES.get(genre_key, GENRE_HERO_IMAGES['horror'])
 
     return render_template('genre.html',
         g=g, g_info=g, movies=movies,
-        photo_count=photos, clip_count=clips, avg_rating=avg_rating,
+        photo_count=photos, clip_count=clips,
+        avg_rating=avg_rating, hero_image=hero_image,
     )
 
 # ── Add movie ─────────────────────────────────────────────────
