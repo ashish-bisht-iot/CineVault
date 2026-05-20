@@ -104,11 +104,6 @@ flask>=3.0.0
 werkzeug>=3.0.0
 ```
 
-Install with:
-```bash
-pip install -r requirements.txt
-```
-
 ---
 
 ## 📁 Supported File Types
