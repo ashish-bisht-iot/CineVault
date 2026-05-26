@@ -4,76 +4,89 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}CineVault{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+  <!-- Prevent theme flash -->
   <script>
-    /* Apply saved theme before page renders — prevents flash */
     (function(){
       var t = localStorage.getItem('cv-theme') || 'dark';
       document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.style.opacity = '0';
     })();
   </script>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
 
+<!-- ── NAV ──────────────────────────────────────── -->
 <nav>
   <a href="{{ url_for('index') }}" class="logo">CineVault</a>
   <div class="nav-right">
     {% block nav_right %}
     <a href="{{ url_for('index') }}" class="nbtn">Home</a>
     {% endblock %}
+
+    <!-- PIN settings trigger -->
+    {% if get_pin_hash and get_pin_hash() %}
+    <button class="theme-toggle" title="PIN Settings" onclick="document.getElementById('pinModal').style.display='flex'"
+            style="font-size:14px;">⚙️</button>
+    {% endif %}
+
     <button class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle light/dark mode">
       <span class="theme-icon theme-icon-dark">🌙</span>
       <span class="theme-icon theme-icon-light">☀️</span>
     </button>
-    {% if pin_set %}
-    <a href="{{ url_for('logout') }}" class="theme-toggle" title="Lock vault" style="text-decoration:none;font-size:15px;" aria-label="Lock vault">🔒</a>
-    {% else %}
-    <button class="theme-toggle" onclick="document.getElementById('pinModal').style.display='flex'" title="Set PIN" style="font-size:15px;" aria-label="Set PIN">🔐</button>
-    {% endif %}
+    <a href="{{ url_for('logout') }}" class="theme-toggle" title="Lock vault"
+       style="text-decoration:none;font-size:14px;" onclick="event.preventDefault();confirmLock(this.href)">🔒</a>
   </div>
 </nav>
 
-<!-- PIN Settings Modal -->
+<!-- ── PIN Settings Modal ────────────────────────── -->
 <div class="lightbox" id="pinModal" style="display:none;">
-  <div class="lightbox-inner" style="max-width:420px;">
+  <div class="lightbox-inner" style="max-width:440px;">
     <button class="lightbox-close" onclick="document.getElementById('pinModal').style.display='none'">✕</button>
-    <div style="padding:32px 28px;">
-      <h3 style="font-family:var(--serif);font-size:22px;margin-bottom:20px;">🔐 PIN Settings</h3>
+    <div style="padding:36px 30px;">
+      <h3 style="font-family:var(--serif);font-size:24px;margin-bottom:6px;">🔐 PIN Settings</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:28px;letter-spacing:0.5px;">Manage your vault access PIN</p>
 
-      {% if pin_set %}
-      <form method="POST" action="/change-pin" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
-        <label style="font-size:11px;letter-spacing:1px;color:var(--muted);">CURRENT PIN</label>
-        <input type="password" name="current_pin" placeholder="Current PIN" maxlength="8"
-          style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;">
-        <label style="font-size:11px;letter-spacing:1px;color:var(--muted);margin-top:6px;">NEW PIN</label>
-        <input type="password" name="new_pin" placeholder="New PIN (min 4 digits)" maxlength="8"
-          style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;">
-        <button type="submit" style="margin-top:6px;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#A66CFF,#FF6B9D);color:#fff;font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;">Change PIN</button>
+      <form method="POST" action="/change-pin"
+            style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px;padding-bottom:28px;border-bottom:1px solid var(--border);">
+        <label style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">Current PIN</label>
+        <input type="password" name="current_pin" placeholder="Enter current PIN" maxlength="8"
+          style="background:var(--surface);border:1px solid var(--border-hi);border-radius:10px;padding:11px 15px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color 0.2s;"
+          onfocus="this.style.borderColor='var(--dark)'" onblur="this.style.borderColor=''">
+        <label style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-top:4px;">New PIN</label>
+        <input type="password" name="new_pin" placeholder="Min 4 digits" maxlength="8"
+          style="background:var(--surface);border:1px solid var(--border-hi);border-radius:10px;padding:11px 15px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color 0.2s;"
+          onfocus="this.style.borderColor='var(--dark)'" onblur="this.style.borderColor=''">
+        <button type="submit"
+          style="margin-top:4px;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#A66CFF,#FF6B9D);color:#fff;font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;letter-spacing:0.5px;transition:opacity 0.2s,transform 0.2s;"
+          onmouseover="this.style.opacity='0.88'" onmouseout="this.style.opacity='1'">Change PIN</button>
       </form>
 
       <form method="POST" action="/remove-pin" style="display:flex;flex-direction:column;gap:10px;">
-        <label style="font-size:11px;letter-spacing:1px;color:var(--muted);">REMOVE PIN PROTECTION</label>
+        <label style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">Remove PIN Protection</label>
         <input type="password" name="current_pin" placeholder="Enter current PIN to remove" maxlength="8"
-          style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;">
-        <button type="submit" style="padding:10px;border-radius:8px;border:1px solid rgba(232,69,69,0.3);background:rgba(232,69,69,0.1);color:#FF6B6B;font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;">Remove PIN</button>
+          style="background:var(--surface);border:1px solid var(--border-hi);border-radius:10px;padding:11px 15px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color 0.2s;"
+          onfocus="this.style.borderColor='rgba(232,69,69,0.6)'" onblur="this.style.borderColor=''">
+        <button type="submit"
+          style="padding:11px;border-radius:10px;border:1px solid rgba(232,69,69,0.28);background:rgba(232,69,69,0.09);color:#FF6B6B;font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;transition:background 0.2s;"
+          onmouseover="this.style.background='rgba(232,69,69,0.16)'" onmouseout="this.style.background='rgba(232,69,69,0.09)'">Remove PIN</button>
       </form>
-      {% else %}
-      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;">No PIN is currently set. Visit the lock screen to set one.</p>
-      <a href="{{ url_for('lock_page') }}" style="display:block;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#A66CFF,#FF6B9D);color:#fff;font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;text-align:center;">Set a PIN</a>
-      {% endif %}
     </div>
   </div>
 </div>
 
 {% block body %}{% endblock %}
 
+<!-- ── FOOTER ────────────────────────────────────── -->
 <footer>
   <span class="footer-logo">CineVault</span>
   <nav class="footer-links">
     {% for genre in genres %}
     <a href="{{ url_for('genre_page', genre_key=genre.key) }}"
-       {% if g_info and g_info.key == genre.key %}style="color:var(--accent)"{% endif %}>
+       {% if g_info and g_info.key == genre.key %}style="color:var(--accent,#A66CFF)"{% endif %}>
       {{ genre.label }}
     </a>
     {% endfor %}
@@ -81,21 +94,44 @@
   <span class="footer-copy">© {{ now_year }} CineVault. All rights reserved.</span>
 </footer>
 
-<!-- Media Lightbox -->
+<!-- ── LIGHTBOX ──────────────────────────────────── -->
 <div class="lightbox" id="lightbox">
   <div class="lightbox-inner" style="max-width:1000px;">
     <button class="lightbox-close" onclick="closeLightbox()">✕</button>
     <div id="lbContent"></div>
     <div class="lightbox-body">
       <div class="lightbox-title" id="lbTitle"></div>
-      <div class="lightbox-meta" id="lbMeta"></div>
+      <div class="lightbox-meta"  id="lbMeta"></div>
     </div>
   </div>
 </div>
 
+<!-- ── TOAST ─────────────────────────────────────── -->
 <div class="toast" id="toast"></div>
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+<script>
+  /* Lock confirmation */
+  function confirmLock(href) {
+    if (confirm('Lock the vault?')) window.location.href = href;
+  }
+
+  /* Close pinModal on backdrop click */
+  document.getElementById('pinModal').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+  });
+
+  /* Flash toast for PIN result query params */
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('pin_changed'))  showToast('✅ PIN updated successfully');
+    if (params.get('pin_removed'))  showToast('🔓 PIN protection removed');
+    if (params.get('pin_error') === 'wrong')   showToast('❌ Wrong PIN entered');
+    if (params.get('pin_error') === 'invalid') showToast('❌ PIN must be at least 4 digits');
+  })();
+</script>
+
 {% block scripts %}{% endblock %}
 </body>
 </html>
